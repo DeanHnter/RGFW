@@ -712,8 +712,13 @@ typedef RGFW_ENUM(u8, RGFW_eventType) {
 	*/
 	RGFW_windowMaximized, /*!< the window was maximized */
 	RGFW_windowMinimized, /*!< the window was minimized */
-	RGFW_windowRestored, /*!< the window was restored */
-	RGFW_scaleUpdated /*!< content scale factor changed */
+    RGFW_windowRestored, /*!< the window was restored */
+    RGFW_scaleUpdated, /*!< content scale factor changed */
+    /* iOS touch events */
+    RGFW_touchBegan,
+    RGFW_touchMoved,
+    RGFW_touchEnded,
+    RGFW_touchCancelled
 };
 
 
@@ -739,12 +744,19 @@ typedef RGFW_ENUM(u32, RGFW_eventFlag) {
     RGFW_dataDropFlag = RGFW_BIT(RGFW_dataDrop),
     RGFW_dataDragFlag = RGFW_BIT(RGFW_dataDrag),
 
+    /* touch flags */
+    RGFW_touchBeganFlag = RGFW_BIT(RGFW_touchBegan),
+    RGFW_touchMovedFlag = RGFW_BIT(RGFW_touchMoved),
+    RGFW_touchEndedFlag = RGFW_BIT(RGFW_touchEnded),
+    RGFW_touchCancelledFlag = RGFW_BIT(RGFW_touchCancelled),
+
     RGFW_keyEventsFlag = RGFW_keyPressedFlag | RGFW_keyReleasedFlag,
     RGFW_mouseEventsFlag = RGFW_mouseButtonPressedFlag | RGFW_mouseButtonReleasedFlag | RGFW_mousePosChangedFlag | RGFW_mouseEnterFlag | RGFW_mouseLeaveFlag | RGFW_mouseScrollFlag ,
     RGFW_windowEventsFlag = RGFW_windowMovedFlag | RGFW_windowResizedFlag | RGFW_windowRefreshFlag | RGFW_windowMaximizedFlag | RGFW_windowMinimizedFlag | RGFW_windowRestoredFlag | RGFW_scaleUpdatedFlag,
     RGFW_focusEventsFlag = RGFW_focusInFlag | RGFW_focusOutFlag,
     RGFW_dataDropEventsFlag = RGFW_dataDropFlag | RGFW_dataDragFlag,
-    RGFW_allEventFlags = RGFW_keyEventsFlag | RGFW_mouseEventsFlag | RGFW_windowEventsFlag | RGFW_focusEventsFlag | RGFW_dataDropEventsFlag | RGFW_quitFlag
+    RGFW_touchEventsFlag = RGFW_touchBeganFlag | RGFW_touchMovedFlag | RGFW_touchEndedFlag | RGFW_touchCancelledFlag,
+    RGFW_allEventFlags = RGFW_keyEventsFlag | RGFW_mouseEventsFlag | RGFW_windowEventsFlag | RGFW_focusEventsFlag | RGFW_dataDropEventsFlag | RGFW_touchEventsFlag | RGFW_quitFlag
 };
 
 /*! Event structure(s) and union for checking/getting events */
@@ -803,15 +815,18 @@ typedef struct RGFW_scaleUpdatedEvent {
 
 /*! RGFW_event union */
 typedef union RGFW_event {
-	RGFW_eventType type; /*!< which event has been sent?*/
-	RGFW_commonEvent common; /*!< common event data (e.g.) type and win */
-	RGFW_mouseButtonEvent button; /*!< data for a button press/release */
-	RGFW_mouseScrollEvent scroll; /*!< data for a mouse scroll */
-	RGFW_mousePosEvent mouse; /*!< data for mouse motion events */
-	RGFW_keyEvent key; /*!< data for key press/release/hold events */
-	RGFW_dataDropEvent drop; /*!< dropping a file events */
-	RGFW_dataDragEvent drag; /* data for dragging a file events */
-	RGFW_scaleUpdatedEvent scale; /* data for monitor scaling events */
+    RGFW_eventType type; /*!< which event has been sent?*/
+    RGFW_commonEvent common; /*!< common event data (e.g.) type and win */
+    RGFW_mouseButtonEvent button; /*!< data for a button press/release */
+    RGFW_mouseScrollEvent scroll; /*!< data for a mouse scroll */
+    RGFW_mousePosEvent mouse; /*!< data for mouse motion events */
+    RGFW_keyEvent key; /*!< data for key press/release/hold events */
+    RGFW_dataDropEvent drop; /*!< dropping a file events */
+    RGFW_dataDragEvent drag; /* data for dragging a file events */
+    RGFW_scaleUpdatedEvent scale; /* data for monitor scaling events */
+    struct { /* touch payload */
+        RGFW_eventType type; RGFW_window* win; u8 count; struct { u64 id; i32 x; i32 y; } touches[10];
+    } touch;
 } RGFW_event;
 
 /*!
@@ -1240,6 +1255,8 @@ typedef void (* RGFW_mouseScrollfunc)(RGFW_window* win, float x, float y);
 typedef void (* RGFW_dataDropfunc)(RGFW_window* win, char** files, size_t count);
 /*! RGFW_scaleUpdated, the window the event was sent to, content scaleX, content scaleY */
 typedef void (* RGFW_scaleUpdatedfunc)(RGFW_window* win, float scaleX, float scaleY);
+/*! RGFW_touch* events (iOS), payload points to RGFW_event.touch */
+typedef void (* RGFW_touchfunc)(RGFW_window* win, RGFW_eventType type, const void* payload);
 
 /*! set callback for a window move event. Returns previous callback function (if it was set)  */
 RGFWDEF RGFW_windowMovedfunc RGFW_setWindowMovedCallback(RGFW_windowMovedfunc func);
@@ -1273,6 +1290,8 @@ RGFWDEF RGFW_windowMinimizedfunc RGFW_setWindowMinimizedCallback(RGFW_windowMini
 RGFWDEF RGFW_windowRestoredfunc RGFW_setWindowRestoredCallback(RGFW_windowRestoredfunc func);
 /*! set callback for when the DPI changes. Returns previous callback function (if it was set)  */
 RGFWDEF RGFW_scaleUpdatedfunc RGFW_setScaleUpdatedCallback(RGFW_scaleUpdatedfunc func);
+/*! set callback for touch events (iOS). Returns previous callback function (if it was set) */
+RGFWDEF RGFW_touchfunc RGFW_setTouchCallback(RGFW_touchfunc func);
 /** @} */
 
 /** * @defgroup graphics_API
@@ -1835,6 +1854,10 @@ struct RGFW_info {
 	void* customWindowDelegateClass;
     #endif
 
+    #ifdef RGFW_IOS
+    void* customViewClass; /* UIView subclass for touch handling */
+    #endif
+
 	#ifdef RGFW_OPENGL
 		RGFW_window* current;
 	#endif
@@ -2059,6 +2082,9 @@ RGFW_CALLBACK_DEFINE(mouseScroll, MouseScroll)
 
 RGFW_CALLBACK_DEFINE(scaleUpdated, ScaleUpdated)
 #define RGFW_scaleUpdatedCallback(w, scaleX, scaleY) if (RGFW_scaleUpdatedCallbackSrc) RGFW_scaleUpdatedCallbackSrc(w, scaleX, scaleY);
+
+RGFW_CALLBACK_DEFINE(touch, Touch)
+#define RGFW_touchCallback(w, type, payload) if (RGFW_touchCallbackSrc) RGFW_touchCallbackSrc(w, type, payload);
 
 RGFW_CALLBACK_DEFINE(debug, Debug)
 #define RGFW_debugCallback(type, err, msg) if (RGFW_debugCallbackSrc) RGFW_debugCallbackSrc(type, err, msg);
@@ -11241,6 +11267,7 @@ WGPUSurface RGFW_window_createSurface_WebGPU(RGFW_window* window, WGPUInstance i
 
 #define NSAlloc(nsclass) objc_msgSend_id((id)nsclass, sel_registerName("alloc"))
 #define objc_msgSend_id(x, y)                 ((id (*)(id, SEL))objc_msgSend) ((id)(x), (SEL)y)
+#define objc_msgSend_uint(x, y)               ((unsigned long (*)(id, SEL))objc_msgSend) ((id)(x), (SEL)y)
 #define objc_msgSend_void(x, y)               ((void (*)(id, SEL))objc_msgSend) ((id)(x), (SEL)y)
 #define objc_msgSend_void_id(x, y, z)         ((void (*)(id, SEL, id))objc_msgSend) ((id)x, (SEL)y, (id)z)
 #define objc_msgSend_void_bool(x, y, z)       ((void (*)(id, SEL, BOOL))objc_msgSend)  ((id)(x), (SEL)y, (BOOL)z)
@@ -11257,7 +11284,28 @@ void RGFW_initKeycodesPlatform(void) {
     RGFW_MEMSET(_RGFW->keycodes, 0, sizeof(_RGFW->keycodes));
 }
 
-i32 RGFW_initPlatform(void) { return 0; }
+i32 RGFW_initPlatform(void) {
+    /* allocate a custom UIView subclass for touch handling */
+    if (_RGFW && _RGFW->customViewClass == NULL) {
+        Class super = objc_getClass("UIView");
+        Class cls = objc_allocateClassPair(super, "RGFWTouchView", 0);
+        if (cls) {
+            class_addIvar(cls, "RGFW_window", sizeof(RGFW_window*), sizeof(RGFW_window*), "^v");
+            /* method signatures: v@:@@ (self, _cmd, touches, event) */
+            extern void RGFW__iosTouchesBegan(id self, SEL _cmd, id touches, id event);
+            extern void RGFW__iosTouchesMoved(id self, SEL _cmd, id touches, id event);
+            extern void RGFW__iosTouchesEnded(id self, SEL _cmd, id touches, id event);
+            extern void RGFW__iosTouchesCancelled(id self, SEL _cmd, id touches, id event);
+            class_addMethod(cls, sel_registerName("touchesBegan:withEvent:"), (IMP)RGFW__iosTouchesBegan, "v@:@@");
+            class_addMethod(cls, sel_registerName("touchesMoved:withEvent:"), (IMP)RGFW__iosTouchesMoved, "v@:@@");
+            class_addMethod(cls, sel_registerName("touchesEnded:withEvent:"), (IMP)RGFW__iosTouchesEnded, "v@:@@");
+            class_addMethod(cls, sel_registerName("touchesCancelled:withEvent:"), (IMP)RGFW__iosTouchesCancelled, "v@:@@");
+            objc_registerClassPair(cls);
+            _RGFW->customViewClass = (void*)cls;
+        }
+    }
+    return 0;
+}
 
 RGFW_window* RGFW_createWindowPlatform(const char* name, RGFW_windowFlags flags, RGFW_window* win) {
     RGFW_UNUSED(flags);
@@ -11278,8 +11326,16 @@ RGFW_window* RGFW_createWindowPlatform(const char* name, RGFW_windowFlags flags,
     if (name) objc_msgSend_void_id(vc, sel_registerName("setTitle:"), NSString_stringWithUTF8String_iOS(name));
 
     objc_msgSend_void_id(window, sel_registerName("setRootViewController:"), vc);
-    id view = objc_msgSend_id(vc, sel_registerName("view"));
-    ((void(*)(id, SEL, CGRect))objc_msgSend)(view, sel_registerName("setFrame:"), bounds);
+    id view = NULL;
+    if (_RGFW && _RGFW->customViewClass) {
+        view = ((id(*)(id, SEL, CGRect))objc_msgSend)(NSAlloc((Class)_RGFW->customViewClass), sel_registerName("initWithFrame:"), bounds);
+        /* back-reference to RGFW_window for event routing */
+        object_setInstanceVariable(view, "RGFW_window", win);
+        objc_msgSend_void_id(vc, sel_registerName("setView:"), view);
+    } else {
+        view = objc_msgSend_id(vc, sel_registerName("view"));
+        ((void(*)(id, SEL, CGRect))objc_msgSend)(view, sel_registerName("setFrame:"), bounds);
+    }
 
     objc_msgSend_void(window, sel_registerName("makeKeyAndVisible"));
 
@@ -11307,6 +11363,36 @@ void* RGFW_window_getWindow_iOS(RGFW_window* win) { return win ? win->src.window
 void* RGFW_window_getView_iOS(RGFW_window* win) { return win ? win->src.view : NULL; }
 void* RGFW_window_getViewController_iOS(RGFW_window* win) { return win ? win->src.viewController : NULL; }
 void* RGFW_window_getWindowScene_iOS(RGFW_window* win) { return win ? win->src.windowScene : NULL; }
+
+/* Touch handling (UIView subclass methods) */
+static void RGFW__iosTouchesDispatch(id self, id touchesSet, RGFW_eventType evtType) {
+    RGFW_window* win = NULL; object_getInstanceVariable(self, "RGFW_window", (void**)&win);
+    if (win == NULL) return;
+    if (!(win->internal.enabledEvents & RGFW_touchEventsFlag)) return;
+
+    id array = objc_msgSend_id(touchesSet, sel_registerName("allObjects"));
+    unsigned long count = objc_msgSend_uint(array, sel_registerName("count"));
+
+    RGFW_event e; RGFW_MEMSET(&e, 0, sizeof(e));
+    e.type = evtType; e.common.win = win;
+    e.touch.type = evtType; e.touch.win = win;
+    e.touch.count = (u8)((count > 10) ? 10 : count);
+    for (u8 i = 0; i < e.touch.count; ++i) {
+        id touch = ((id(*)(id, SEL, unsigned long))objc_msgSend)(array, sel_registerName("objectAtIndex:"), (unsigned long)i);
+        CGPoint p = ((CGPoint(*)(id, SEL, id))abi_objc_msgSend_stret)(touch, sel_registerName("locationInView:"), self);
+        e.touch.touches[i].id = (u64)(uintptr_t)touch;
+        e.touch.touches[i].x = (i32)p.x;
+        e.touch.touches[i].y = (i32)p.y;
+    }
+
+    RGFW_eventQueuePush(&e);
+    RGFW_touchCallback(win, evtType, (const void*)&e.touch);
+}
+
+void RGFW__iosTouchesBegan(id self, SEL _cmd, id touches, id event) { RGFW_UNUSED(_cmd); RGFW_UNUSED(event); RGFW__iosTouchesDispatch(self, touches, RGFW_touchBegan); }
+void RGFW__iosTouchesMoved(id self, SEL _cmd, id touches, id event) { RGFW_UNUSED(_cmd); RGFW_UNUSED(event); RGFW__iosTouchesDispatch(self, touches, RGFW_touchMoved); }
+void RGFW__iosTouchesEnded(id self, SEL _cmd, id touches, id event) { RGFW_UNUSED(_cmd); RGFW_UNUSED(event); RGFW__iosTouchesDispatch(self, touches, RGFW_touchEnded); }
+void RGFW__iosTouchesCancelled(id self, SEL _cmd, id touches, id event) { RGFW_UNUSED(_cmd); RGFW_UNUSED(event); RGFW__iosTouchesDispatch(self, touches, RGFW_touchCancelled); }
 
 /* Basic window management (stubs) */
 void RGFW_pollEvents(void) {
