@@ -3,7 +3,7 @@ location ("build")
 workspace "RGFW"
     configurations { "Debug", "Release" }
     if os.host() == "macosx" then
-        startproject "ios_metal_triangle"
+        startproject "ios_rgfw_simple"
     else
         startproject "callbacks"
     end
@@ -139,6 +139,7 @@ group "examples"
         { name = "metal/metal", system = "macosx", condition = isMac },
         { name = "ios_metal_triangle", system = "ios", condition = true },
         { name = "ios_rgfw_simple", system = "ios", condition = true },
+        { name = "ios_touch", system = "ios", condition = true },
         { name = "webgpu/webgpu", system = "emscripten", condition = (os.target() == "emscripten") },
         { name = "minimal_links/minimal_links" },
         { name = "osmesa_demo/osmesa_demo", condition = not no_osmesa },
@@ -175,7 +176,7 @@ group "examples"
                 targetdir "bin/%{cfg.buildcfg}"
                 objdir "bin-int/%{cfg.buildcfg}"
 
-                if e.name == "ios_metal_triangle" or e.name == "ios_rgfw_simple" then
+                if e.name == "ios_metal_triangle" or e.name == "ios_rgfw_simple" or e.name == "ios_touch" then
                     -- Configure as iOS app target
                     system "ios"
                     kind "WindowedApp"
@@ -189,7 +190,7 @@ group "examples"
                             "examples/ios_metal_triangle/rgfw_impl.c",
                             "RGFW.h"
                         }
-                    else
+                    elseif e.name == "ios_rgfw_simple" then
                         files {
                             "examples/ios_rgfw_simple/*.m",
                             "examples/ios_rgfw_simple/*.mm",
@@ -198,9 +199,18 @@ group "examples"
                             "examples/ios_rgfw_simple/rgfw_impl.c",
                             "RGFW.h"
                         }
+                    else
+                        files {
+                            "examples/ios_touch/*.m",
+                            "examples/ios_touch/*.mm",
+                            "examples/ios_touch/*.metal",
+                            "examples/ios_touch/*.h",
+                            "examples/ios_touch/rgfw_impl.c",
+                            "RGFW.h"
+                        }
                     end
                     -- Include common iOS entry shim for the simple track
-                    if e.name == "ios_rgfw_simple" then
+                    if e.name == "ios_rgfw_simple" or e.name == "ios_touch" then
                         files { "examples/common/ios/rgfw_ios_entry.m", "examples/common/ios/rgfw_ios_entry.h" }
                         includedirs { "examples/common/ios" }
                     end
@@ -212,10 +222,16 @@ group "examples"
                         undefines { "RGFW_IMPORT" }
                         defines { "RGFW_EXPORT", "RGFW_IMPLEMENTATION" }
                     filter {}
+                    filter { "files:examples/ios_touch/rgfw_impl.c" }
+                        undefines { "RGFW_IMPORT" }
+                        defines { "RGFW_EXPORT", "RGFW_IMPLEMENTATION" }
+                    filter {}
                     buildoptions { "-fobjc-arc" }
                     local plistPath = "$(SRCROOT)/../examples/ios_metal_triangle/Info.plist"
                     if e.name == "ios_rgfw_simple" then
                         plistPath = "$(SRCROOT)/../examples/ios_rgfw_simple/Info.plist"
+                    elseif e.name == "ios_touch" then
+                        plistPath = "$(SRCROOT)/../examples/ios_touch/Info.plist"
                     end
                     xcodebuildsettings {
                         ["INFOPLIST_FILE"] = plistPath,
