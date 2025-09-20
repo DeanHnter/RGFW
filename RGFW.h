@@ -11331,6 +11331,8 @@ RGFW_window* RGFW_createWindowPlatform(const char* name, RGFW_windowFlags flags,
         view = ((id(*)(id, SEL, CGRect))objc_msgSend)(NSAlloc((Class)_RGFW->customViewClass), sel_registerName("initWithFrame:"), bounds);
         /* back-reference to RGFW_window for event routing */
         object_setInstanceVariable(view, "RGFW_window", win);
+        ((void(*)(id,SEL,BOOL))objc_msgSend)(view, sel_registerName("setMultipleTouchEnabled:"), YES);
+        ((void(*)(id,SEL,BOOL))objc_msgSend)(view, sel_registerName("setUserInteractionEnabled:"), YES);
         objc_msgSend_void_id(vc, sel_registerName("setView:"), view);
     } else {
         view = objc_msgSend_id(vc, sel_registerName("view"));
