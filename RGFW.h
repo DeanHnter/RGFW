@@ -1210,6 +1210,15 @@ typedef RGFW_ENUM(u8, RGFW_errorCode) {
 typedef void (* RGFW_debugfunc)(RGFW_debugType type, RGFW_errorCode err, const char* msg);
 RGFWDEF RGFW_debugfunc RGFW_setDebugCallback(RGFW_debugfunc func);
 RGFWDEF void RGFW_sendDebugInfo(RGFW_debugType type, RGFW_errorCode err, const char* msg);
+
+/** iOS simple entry (C-only) */
+#ifdef RGFW_IOS
+typedef int (*RGFW_iOSEntryFn)(void);
+RGFWDEF int RGFW_iOS_run(int argc, char** argv, RGFW_iOSEntryFn userMain);
+RGFWDEF void RGFW_attachWindowToFirstScene_iOS(struct RGFW_window* win);
+#define RGFW_IOS_APP(user_main_fn) int main(int argc, char** argv){ return RGFW_iOS_run(argc, argv, user_main_fn); }
+#endif
+
 /** @} */
 
 /**
@@ -4242,6 +4251,7 @@ int RGFW_XErrorHandler(Display* display, XErrorEvent* ev) {
     _RGFW->x11Error = ev;
     return 0;
 }
+
 
 void RGFW_XCreateWindow (XVisualInfo visual, const char* name, RGFW_windowFlags flags, RGFW_window* win) {
 	i64 event_mask = KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask | StructureNotifyMask | FocusChangeMask | LeaveWindowMask | EnterWindowMask | ExposureMask; /*!< X11 events accepted */
@@ -11395,6 +11405,63 @@ void RGFW__iosTouchesBegan(id self, SEL _cmd, id touches, id event) { RGFW_UNUSE
 void RGFW__iosTouchesMoved(id self, SEL _cmd, id touches, id event) { RGFW_UNUSED(_cmd); RGFW_UNUSED(event); RGFW__iosTouchesDispatch(self, touches, RGFW_touchMoved); }
 void RGFW__iosTouchesEnded(id self, SEL _cmd, id touches, id event) { RGFW_UNUSED(_cmd); RGFW_UNUSED(event); RGFW__iosTouchesDispatch(self, touches, RGFW_touchEnded); }
 void RGFW__iosTouchesCancelled(id self, SEL _cmd, id touches, id event) { RGFW_UNUSED(_cmd); RGFW_UNUSED(event); RGFW__iosTouchesDispatch(self, touches, RGFW_touchCancelled); }
+
+/* Attach RGFW UIWindow to first UIWindowScene and make visible */
+void RGFW_attachWindowToFirstScene_iOS(RGFW_window* win) {
+    if (!win || !win->src.window) return;
+    id app = objc_msgSend_id((id)objc_getClass("UIApplication"), sel_registerName("sharedApplication"));
+    id scenesSet = objc_msgSend_id(app, sel_registerName("connectedScenes"));
+    id scenes = objc_msgSend_id(scenesSet, sel_registerName("allObjects"));
+    unsigned long count = objc_msgSend_uint(scenes, sel_registerName("count"));
+    if (count == 0) return;
+    id sc = ((id(*)(id,SEL,unsigned long))objc_msgSend)(scenes, sel_registerName("objectAtIndex:"), 0UL);
+    ((void(*)(id,SEL,id))objc_msgSend)((id)win->src.window, sel_registerName("setWindowScene:"), sc);
+    objc_msgSend_void((id)win->src.window, sel_registerName("makeKeyAndVisible"));
+}
+
+/* C-only simple entry using runtime */
+static int (*RGFW_userMain_iOS)(void) = NULL;
+static void RGFW_imp_rgfwStart(id self, SEL _cmd) { RGFW_UNUSED(self); RGFW_UNUSED(_cmd); if (RGFW_userMain_iOS) RGFW_userMain_iOS(); }
+static id RGFW_imp_app_config(id self, SEL _cmd, id application, id connectingSceneSession, id options) {
+    RGFW_UNUSED(self); RGFW_UNUSED(_cmd); RGFW_UNUSED(application); RGFW_UNUSED(options);
+    id role = objc_msgSend_id(connectingSceneSession, sel_registerName("role"));
+    id cfg = ((id(*)(id,SEL,id,id))objc_msgSend)((id)objc_getClass("UISceneConfiguration"), sel_registerName("configurationWithName:sessionRole:"), NSString_stringWithUTF8String_iOS("Default Configuration"), role);
+    Class sceneDel = objc_getClass("RGFW_CSceneDelegate");
+    if (sceneDel) ((void(*)(id,SEL,Class))objc_msgSend)(cfg, sel_registerName("setDelegateClass:"), sceneDel);
+    return cfg;
+}
+static void RGFW_imp_scene_willConnect(id self, SEL _cmd, id scene, id session, id options) {
+    RGFW_UNUSED(_cmd); RGFW_UNUSED(session); RGFW_UNUSED(options);
+    ((void(*)(id,SEL,SEL,id,bool))objc_msgSend)(self, sel_registerName("performSelectorOnMainThread:withObject:waitUntilDone:"), sel_registerName("rgfwStart"), (id)NULL, false);
+}
+
+int RGFW_iOS_run(int argc, char** argv, int (*userMain)(void)) {
+    RGFW_userMain_iOS = userMain;
+
+    /* Scene delegate */
+    Class sceneSuper = objc_getClass("UIResponder");
+    Class sceneCls = objc_allocateClassPair(sceneSuper, "RGFW_CSceneDelegate", 0);
+    if (sceneCls) {
+        class_addMethod(sceneCls, sel_registerName("scene:willConnectToSession:options:"), (IMP)RGFW_imp_scene_willConnect, "v@:@@@");
+        class_addMethod(sceneCls, sel_registerName("rgfwStart"), (IMP)RGFW_imp_rgfwStart, "v@:");
+        class_addIvar(sceneCls, "window", sizeof(id), sizeof(id), "@");
+        Protocol* pScene = objc_getProtocol("UIWindowSceneDelegate"); if (pScene) class_addProtocol(sceneCls, pScene);
+        objc_registerClassPair(sceneCls);
+    }
+
+    /* App delegate */
+    Class appSuper = objc_getClass("UIResponder");
+    Class appCls = objc_allocateClassPair(appSuper, "RGFW_CAppDelegate", 0);
+    if (appCls) {
+        class_addMethod(appCls, sel_registerName("application:configurationForConnectingSceneSession:options:"), (IMP)RGFW_imp_app_config, "@@:@@@");
+        Protocol* pApp = objc_getProtocol("UIApplicationDelegate"); if (pApp) class_addProtocol(appCls, pApp);
+        objc_registerClassPair(appCls);
+    }
+
+    extern int UIApplicationMain(int, char**, void*, void*);
+    return UIApplicationMain(argc, argv, NULL, NSString_stringWithUTF8String_iOS("RGFW_CAppDelegate"));
+}
+
 
 /* Basic window management (stubs) */
 void RGFW_pollEvents(void) {
