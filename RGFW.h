@@ -712,13 +712,13 @@ typedef RGFW_ENUM(u8, RGFW_eventType) {
 	*/
 	RGFW_windowMaximized, /*!< the window was maximized */
 	RGFW_windowMinimized, /*!< the window was minimized */
-    RGFW_windowRestored, /*!< the window was restored */
-    RGFW_scaleUpdated, /*!< content scale factor changed */
-    /* iOS touch events */
-    RGFW_touchBegan,
-    RGFW_touchMoved,
-    RGFW_touchEnded,
-    RGFW_touchCancelled
+	RGFW_windowRestored, /*!< the window was restored */
+	RGFW_scaleUpdated, /*!< content scale factor changed */
+	/* iOS touch events */
+	RGFW_touchBegan,
+	RGFW_touchMoved,
+	RGFW_touchEnded,
+	RGFW_touchCancelled
 };
 
 
@@ -815,18 +815,18 @@ typedef struct RGFW_scaleUpdatedEvent {
 
 /*! RGFW_event union */
 typedef union RGFW_event {
-    RGFW_eventType type; /*!< which event has been sent?*/
-    RGFW_commonEvent common; /*!< common event data (e.g.) type and win */
-    RGFW_mouseButtonEvent button; /*!< data for a button press/release */
-    RGFW_mouseScrollEvent scroll; /*!< data for a mouse scroll */
-    RGFW_mousePosEvent mouse; /*!< data for mouse motion events */
-    RGFW_keyEvent key; /*!< data for key press/release/hold events */
-    RGFW_dataDropEvent drop; /*!< dropping a file events */
-    RGFW_dataDragEvent drag; /* data for dragging a file events */
-    RGFW_scaleUpdatedEvent scale; /* data for monitor scaling events */
-    struct { /* touch payload */
-        RGFW_eventType type; RGFW_window* win; u8 count; struct { u64 id; i32 x; i32 y; } touches[10];
-    } touch;
+	RGFW_eventType type; /*!< which event has been sent?*/
+	RGFW_commonEvent common; /*!< common event data (e.g.) type and win */
+	RGFW_mouseButtonEvent button; /*!< data for a button press/release */
+	RGFW_mouseScrollEvent scroll; /*!< data for a mouse scroll */
+	RGFW_mousePosEvent mouse; /*!< data for mouse motion events */
+	RGFW_keyEvent key; /*!< data for key press/release/hold events */
+	RGFW_dataDropEvent drop; /*!< dropping a file events */
+	RGFW_dataDragEvent drag; /* data for dragging a file events */
+	RGFW_scaleUpdatedEvent scale; /* data for monitor scaling events */
+	struct { /* touch payload */
+		RGFW_eventType type; RGFW_window* win; u8 count; struct { u64 id; i32 x; i32 y; } touches[10];
+	} touch;
 } RGFW_event;
 
 /*!
