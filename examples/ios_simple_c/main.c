@@ -4,26 +4,11 @@
 #include <objc/objc.h>
 #include <objc/runtime.h>
 #include <objc/message.h>
-#include "RGFW.h"
-#include "rgfw_ios_entry_c.h"
-
-static void attach_to_first_scene(void* uiWindow) {
-    id app = ((id(*)(id,SEL))objc_msgSend)((id)objc_getClass("UIApplication"), sel_registerName("sharedApplication"));
-    id scenesSet = ((id(*)(id,SEL))objc_msgSend)(app, sel_registerName("connectedScenes"));
-    id scenes = ((id(*)(id,SEL))objc_msgSend)(scenesSet, sel_registerName("allObjects"));
-    unsigned long count = ((unsigned long(*)(id,SEL))objc_msgSend)(scenes, sel_registerName("count"));
-    for (unsigned long i = 0; i < count; ++i) {
-        id sc = ((id(*)(id,SEL,unsigned long))objc_msgSend)(scenes, sel_registerName("objectAtIndex:"), i);
-        ((void(*)(id,SEL,id))objc_msgSend)((id)uiWindow, sel_registerName("setWindowScene:"), sc);
-        ((void(*)(id,SEL))objc_msgSend)((id)uiWindow, sel_registerName("makeKeyAndVisible"));
-        break;
-    }
-}
+#include "RGFW.h" /* RGFW_IOS_APP macro is inside RGFW.h now */
 
 int app_main(void) {
     RGFW_window* win = RGFW_createWindow("RGFW iOS C-only", 0, 0, 0, 0, 0);
-    void* uiWindow = RGFW_window_getWindow_iOS(win);
-    if (uiWindow) attach_to_first_scene(uiWindow);
+    RGFW_attachWindowToFirstScene_iOS(win);
 
     /* Color the content view so the app isn't just black */
     void* uiView = RGFW_window_getView_iOS(win);
@@ -96,4 +81,4 @@ skip_draw:
     return 0;
 }
 
-RGFW_IOS_C_APP(app_main)
+RGFW_IOS_APP(app_main)

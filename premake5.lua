@@ -184,21 +184,17 @@ group "examples"
                         files {
                             "examples/ios_simple_c/*.c",
                             "examples/ios_simple_c/*.metal",
-                            "examples/common/ios_c/*.c",
-                            "examples/common/ios_c/*.h",
                             "RGFW.h"
                         }
                     else
                         files {
                             "examples/ios_touch_c/*.c",
                             "examples/ios_touch_c/*.metal",
-                            "examples/common/ios_c/*.c",
-                            "examples/common/ios_c/*.h",
                             "RGFW.h"
                         }
                     end
                     -- Include common iOS entry shim for the simple track
-                    includedirs { "examples/common/ios_c" }
+                    
                     filter { "files:examples/*/rgfw_impl.c" }
                         undefines { "RGFW_IMPORT" }
                         defines { "RGFW_EXPORT", "RGFW_IMPLEMENTATION" }
