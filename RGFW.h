@@ -2569,6 +2569,13 @@ void* RGFW_getLayer_OSX(void) { return NULL; }
 void* RGFW_window_getWindow_OSX(RGFW_window* win) { RGFW_UNUSED(win); return NULL; }
 #endif
 
+#ifndef RGFW_IOS
+void* RGFW_window_getWindow_iOS(RGFW_window* win) { RGFW_UNUSED(win); return NULL; }
+void* RGFW_window_getView_iOS(RGFW_window* win) { RGFW_UNUSED(win); return NULL; }
+void* RGFW_window_getViewController_iOS(RGFW_window* win) { RGFW_UNUSED(win); return NULL; }
+void* RGFW_window_getWindowScene_iOS(RGFW_window* win) { RGFW_UNUSED(win); return NULL; }
+#endif
+
 void RGFW_setBit(u32* var, u32 mask, RGFW_bool set) {
 	if (set) *var |=  mask;
 	else     *var &= ~mask;
