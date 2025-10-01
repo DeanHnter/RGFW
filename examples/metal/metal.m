@@ -65,28 +65,34 @@ int main(void)
     [view setLayer: layer];
     // [view setWantsLayer: YES]; (I think RGFW already sets this)
 
-    MTLCompileOptions* compileOptions = [MTLCompileOptions new];
-    compileOptions.languageVersion = MTLLanguageVersion1_1;
-    NSError* compileError;
-    id<MTLLibrary> lib = [device newLibraryWithSource:
-       @"#include <metal_stdlib>\n"
-        "using namespace metal;\n"
-        "vertex float4 v_simple(\n"
-        "    constant float4* in  [[buffer(0)]],\n"
-        "    uint             vid [[vertex_id]])\n"
-        "{\n"
-        "    return in[vid];\n"
-        "}\n"
-        "fragment float4 f_simple(\n"
-        "    float4 in [[stage_in]])\n"
-        "{\n"
-        "    return float4(1, 0, 0, 1);\n"
-        "}\n"
-       options:compileOptions error:&compileError];
+    NSError* compileError = nil;
+    id<MTLLibrary> lib = [device newDefaultLibrary];
     if (!lib)
     {
-        NSLog(@"can't create library: %@", compileError);
-        exit(EXIT_FAILURE);
+        // Fallback: compile inline shader source at runtime for broader compatibility
+        MTLCompileOptions* compileOptions = [MTLCompileOptions new];
+        // Let the toolchain pick a compatible language version
+        id<MTLLibrary> runtimeLib = [device newLibraryWithSource:
+           @"#include <metal_stdlib>\n"
+            "using namespace metal;\n"
+            "vertex float4 v_simple(\n"
+            "    constant float4* in  [[buffer(0)]],\n"
+            "    uint             vid [[vertex_id]])\n"
+            "{\n"
+            "    return in[vid];\n"
+            "}\n"
+            "fragment float4 f_simple(\n"
+            "    float4 in [[stage_in]])\n"
+            "{\n"
+            "    return float4(1, 0, 0, 1);\n"
+            "}\n"
+           options:compileOptions error:&compileError];
+        if (!runtimeLib)
+        {
+            NSLog(@"Can't create Metal library: %@", compileError);
+            exit(EXIT_FAILURE);
+        }
+        lib = runtimeLib;
     }
 
     id<MTLFunction> vs = [lib newFunctionWithName:@"v_simple"];
@@ -147,6 +153,4 @@ int main(void)
 
     RGFW_window_close(window);
 }
-
-
 
